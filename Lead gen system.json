@@ -1,0 +1,1594 @@
+{
+  "name": "Lead gen system",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "\n**Trigger:** Every 3 days at 6:30 PM\n\n**What it does:**\n1. Reads rows from the `Target Market` sheet where `Status = Pending`\n2. Loops through each target market row (industry + country + filters)\n3. Calls Apify's LinkedIn People Scraper API with your ICP filters\n4. Deduplicates results before saving — skips leads already in Apify Raw\n5. Appends all new raw leads into the `Apify Raw` sheet with `Status = Pending`\n6. Updates the `Target Market` row to `Status = Scraped` with a timestamp\n\n**Sheets used:**\n- `Target Market` — your list of niches/countries to scrape\n- `Apify Raw` — stores all scraped leads before qualification\n\n**Setup:**\n- Add your Apify API key credential\n- Add your Google Sheets OAuth credential\n- Configure filters at: https://peaky-leads-scraper-app.netlify.app/\n- Paste the generated JSON into the Apify HTTP node body",
+        "height": 488,
+        "width": 580,
+        "color": 3
+      },
+      "id": "d2b50390-74bb-4301-81f7-207b74cd61d9",
+      "name": "📋 Agent Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2864,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 3,
+              "triggerAtHour": 18,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "c8f5077b-1e6a-41cb-b4ac-768981e20a53",
+      "name": "⏰ Schedule — Every 3 Days 6:30PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2240,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1926771343",
+          "mode": "list",
+          "cachedResultName": "Target Market"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "92116ecd-6836-423a-96c0-a0b856fabcc7",
+      "name": "📊 Target Market — Get Pending Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -2032,
+        224
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d1091eff-0210-41ac-b6a4-284fdaa20d8b",
+      "name": "🔁 Loop — Each Target Market Row",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1808,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/T1XDXWc1L92AfIJtd/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"seniority\": {{ $json['Seniority'] ? JSON.stringify($json['Seniority'].split(',').map(s=>s.trim())) : '[\"Founder\",\"CEO\",\"President\",\"CXO\"]' }},\n  \"companyEmployeeSize\": {{ $json['Company Size'] ? JSON.stringify($json['Company Size'].split(',').map(s=>s.trim())) : '[\"2 - 10\",\"11 - 50\",\"51 - 200\",\"201 - 500\"]' }},\n  \"functional\": [\"{{ $json['Target Industry'] }}\"],\n  \"personCountry\": [\"{{ $json['Target Country'] }}\"],\n  \"personState\": [\"{{ $json['Target State'] }}\"],\n  \"limit\": 100\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "ae83d01d-8cc8-4988-b05e-c2ac379deb3d",
+      "name": "🕷️ Apify — Scrape LinkedIn Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1584,
+        224
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iQw6DDxp3XxHutAS",
+          "name": "KIE AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1",
+              "name": "firstName",
+              "value": "={{ $json.firstName }}",
+              "type": "string"
+            },
+            {
+              "id": "f2",
+              "name": "lastName",
+              "value": "={{ $json.lastName }}",
+              "type": "string"
+            },
+            {
+              "id": "f3",
+              "name": "email",
+              "value": "={{ $json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "f4",
+              "name": "linkedinUrl",
+              "value": "={{ $json.linkedinUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "f5",
+              "name": "organizationName",
+              "value": "={{ $json.organizationName }}",
+              "type": "string"
+            },
+            {
+              "id": "f6",
+              "name": "organizationWebsite",
+              "value": "={{ $json.organizationWebsite }}",
+              "type": "string"
+            },
+            {
+              "id": "f7",
+              "name": "organizationDescription",
+              "value": "={{ $json.organizationDescription }}",
+              "type": "string"
+            },
+            {
+              "id": "f8",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "f9",
+              "name": "country",
+              "value": "={{ $json.country }}",
+              "type": "string"
+            },
+            {
+              "id": "f10",
+              "name": "city",
+              "value": "={{ $json.city }}",
+              "type": "string"
+            },
+            {
+              "id": "f11",
+              "name": "Status",
+              "value": "Pending",
+              "type": "string"
+            },
+            {
+              "id": "f12",
+              "name": "Scraped At",
+              "value": "={{ $now.format('yyyy-MM-dd HH:mm') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a5908782-f251-4f95-83f6-7477a616ef77",
+      "name": "✏️ Map Lead Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1360,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Apify Raw"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "First Name": "={{ $json.firstName }}",
+            "Last Name": "={{ $json.lastName }}",
+            "Email": "={{ $json.email }}",
+            "LinkedIn URL": "={{ $json.linkedinUrl }}",
+            "Company": "={{ $json.organizationName }}",
+            "Website": "={{ $json.organizationWebsite }}",
+            "Description": "={{ $json.organizationDescription }}",
+            "Title": "={{ $json.title }}",
+            "Country": "={{ $json.country }}",
+            "City": "={{ $json.city }}",
+            "Status": "Pending",
+            "Scraped At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a884b41e-5764-461c-a798-d57257ce3afc",
+      "name": "📥 Apify Raw — Append New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1136,
+        224
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1926771343",
+          "mode": "list",
+          "cachedResultName": "Target Market"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Target Industry": "={{ $('📊 Target Market — Get Pending Rows').item.json['Target Industry'] }}",
+            "Status": "Scraped",
+            "Scraped At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [
+            "Target Industry"
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c78ca4c-78a7-425c-817f-8ff71a592958",
+      "name": "✅ Target Market — Mark as Scraped",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -928,
+        224
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Use this filter to get your target leads : https://peaky-leads-scraper-app.netlify.app/\n\nChoose the required filters that suits your target leads\n\nClick on fetch results & Generate json, update that json in the http node in n8n for customization.\n\nExample json format:\n\n```jsx\n{\n\"seniority\": [\n\"Founder\",\n\"CEO\",\n\"CXO\",\n\"Vice President\",\n\"Chairman\",\n\"President\"\n],\n\"functional\": [\n\"Sales\",\n\"Marketing\",\n\"Finance\",\n\"Inside Sales\"\n],\n\"companyEmployeeSize\": [\n\"2 - 10\",\n\"11 - 50\",\n\"51 - 200\"\n],\n\"personCountry\": [\n\"United States\"\n],\n\"personState\": [\n\"Utah\"\n],\n\"contactEmailStatus\": \"verified\",\n\"companyCountry\": [\n\"United States\"\n],\n\"totalResults\": 1500,\n\"includeEmails\": true\n}\n```\n\nTarget countries options:\n\n💡\n\n\"United States\", \"United Kingdom\", \"Canada\", \"Australia\", \"Germany\", \"Netherlands\", \"Singapore\", \"United Arab Emirates\", \"Switzerland\", \"Sweden\", \"France\", \"New Zealand\", \"Ireland\", \"Denmark\", \"Norway\", \"Japan\", \"Israel\", \"Hong Kong\" , \"India\"\n\n\nTarget States options:\n\n💡\n\n- United States:\n    \n    California, New York, Vermont, Indiana, Oregon, Utah, Maine, Iowa, Virginia, Alabama, Hawaii, Massachusetts, Connecticut, Tennessee, Idaho, Arkansas, Florida, Alaska, Nevada, Oklahoma, Ohio, Georgia, Wyoming, Delaware, Rhode Island, Minnesota, Louisiana, North Dakota, New Hampshire, Colorado, Arizona, Washington, Montana, West Virginia, Michigan, New Mexico, South Carolina, North Carolina, Pennsylvania, Missouri, District of Columbia, Kentucky\n    \n- United Kingdom:\n    \n    London Borough of Redbridge, City of Leicester, Poole, Swindon, Orkney Islands, Gloucestershire, City of Peterborough, Leeds, South Lanarkshire, Wokingham, Bradford, Sheffield, North East Lincolnshire, Rotherham, North Yorkshire, Bedford, Gateshead, Brighton and Hove, Coventry, Liverpool, Rochdale, Oldham, Solihull, Central Bedfordshire, Calderdale, West Dunbartonshire, Royal Borough of Greenwich, Royal Borough of Kingston upon Thames, London Borough of Havering, London Borough of Hackney, London Borough of Bexley, Bolton, Falkirk, Blackpool, City of Wolverhampton, Clackmannanshire, City of Southampton, Fife, Walsall, City of Nottingham, Angus, Banbridge, Ballymoney, City of Derby, Dundee, Dumfries and Galloway, Edinburgh, Devon, Dorset, Cambridgeshire, Aberdeen, Aberdeenshire, Argyll and Bute, East Lothian, Inverclyde, Moray, Scottish Borders, Shetland Islands, Outer Hebrides, Highland, Northumberland, Norfolk, Suffolk, Essex, Kent, Surrey, Hampshire, Oxfordshire, Worcestershire, Shropshire, Staffordshire, Derbyshire, Nottinghamshire, Lincolnshire, Leicestershire, Rutland, Northamptonshire, Warwickshire, West Midlands, Cheshire, Merseyside, Greater Manchester, Lancashire, Cumbria, Durham, Tyne and Wear, East Sussex, West Sussex, Berkshire, Buckinghamshire, Hertfordshire, Isle of Wight, Cornwall, Somerset, Wiltshire, Gloucestershire, Bristol, Bath and North East Somerset, North Somerset, South Gloucestershire, Swindon, Bournemouth, Poole, Dorset, Devon, Plymouth, Torbay, Cornwall, Isles of Scilly\n    \n- Germany:\n    \n    Thuringia, Lower Saxony, Schleswig-Holstein, North Rhine-Westphalia, Rhineland-Palatinate, Saarland, Baden-Württemberg, Bavaria, Hesse, Berlin, Hamburg\n    \n- United Arab Emirates:\n    \n    Fujairah, Dubai, Ras al-Khaimah, Umm al-Quwain, Abu Dhabi Emirate, Ajman Emirate, Sharjah Emirate\n    \n- France:\n    \n    Poitou-Charentes, Lower Normandy, French Guiana, Brittany, Auvergne, Aquitaine, Alsace, Rhône-Alpes, Provence-Alpes-Côte d'Azur, Pays de la Loire, Hauts-de-France, Normandy, Nouvelle-Aquitaine, Auvergne-Rhône-Alpes, Centre-Val de Loire, Bourgogne-Franche-Comté, Grand Est, Occitanie, Corsica, Île-de-France, Paris, Upper Normandy, Picardy, Champagne-Ardenne, Lorraine, Franche-Comté, Burgundy, Limousin, Languedoc-Roussillon\n    \n- Denmark:\n    \n    Capital Region of Denmark, Region Zealand, North Denmark Region\n    \n- South Korea:\n    \n    Seoul, Ulsan, South Jeolla Province, Kaohsiung, Incheon, Gyeonggi Province, North Gyeongsang Province, South Gyeongsang Province, Jeju, Daejeon, Daegu, Gwangju, Busan, Gangwon Province, North Jeolla Province, South Chungcheong Province, North Chungcheong Province\n    \n\n- Canada:\n    \n    British Columbia, Saskatchewan, Prince Edward Island, Newfoundland and Labrador, Quebec, Nova Scotia, Manitoba, Alberta, New Brunswick, Northwest Territories, Nunavut, Ontario, Yukon\n    \n- Netherlands:\n    \n    Flevoland, South Holland, North Holland, Utrecht, Zeeland, Overijssel, Drenthe, Friesland, Groningen, Limburg, North Brabant, Gelderland\n    \n- Switzerland:\n    \n    Canton of Neuchâtel, Nidwalden, Canton of Schaffhausen, Canton of Redange, Glarus, Uri, Obwalden, Schwyz, Thurgau, Canton of Lucerne, Canton of Esch-sur-Alzette, Canton of Solothurn, Canton of Vaud, Canton of St. Gallen, canton of Zürich, canton of Bern, Aargau, Basel-Landschaft, Appenzell Innerrhoden, Appenzell Ausserrhoden, Ticino, Canton of Fribourg, Canton of Geneva, Canton of Valais\n    \n- New Zealand:\n    \n    Manawatu-Wanganui Region, Taranaki Region, Nelson Region, Gisborne District, Hawke's Bay Region, Northland Region, Waikato Region, Bay of Plenty Region, Otago Region, Tasman District, Chatham Islands\n    \n- Norway:\n    \n    Nord-Trøndelag, Vest-Agder, Møre og Romsdal, Troms, Finnmark, Rogaland, Oppland, Telemark, Nordland, Akershus, Buskerud, Vestfold, Hedmark, Oslo, Trøndelag\n    \n- India:\n    \n    Rajasthan, Andaman and Nicobar Islands, Dadra and Nagar Haveli, Manipur, Madhya Pradesh, Chhattisgarh, Punjab, Gujarat, Haryana, Delhi, Puducherry, Odisha, Uttarakhand, Nagaland, Arunachal Pradesh, Tamil Nadu, Mizoram, Tripura, Jharkhand, Andhra Pradesh, Assam, Meghalaya, Himachal Pradesh, Sikkim, Uttar Pradesh, Kerala, Karnataka, Goa, Jammu and Kashmir, Telangana, Ladakh, West Bengal, Bihar, Maharashtra\n    \n\n- Australia:\n    \n    Australian Capital Territory, Queensland, South Australia, Victoria, Tasmania, Northern Territory, New South Wales, Western Australia\n    \n- Singapore:\n    \n    Central Singapore Community Development Council, North East Community Development Council, North West Community Development Council, South East Community Development Council, South West Community Development Council\n    \n- Sweden:\n    \n    Västerbotten County, Stockholm County, Kalmar County, Kronoberg County, Jönköping County, Örebro County, Uppsala County, Dalarna County, Norrbotten County, Västernorrland County, Västmanland County, Halland County, Blekinge\n    \n- Ireland:\n    \n    Connacht, Leinster, Munster, Ulster, County Kerry, County Donegal, County Cavan, County Laois, County Roscommon, County Offaly, County Monaghan, County Mayo, County Clare, County Limerick, County Galway, County Sligo, County Louth, County Longford, County Westmeath, County Kilkenny, County Waterford, County Wexford, County Wicklow, County Carlow, County Kildare, County Cork, County Tipperary\n    \n- Japan:\n    \n    Hokkaidō Prefecture, Tokyo, Nagano Prefecture, Fukuoka Prefecture, Ōita Prefecture, Tochigi Prefecture, Kagoshima Prefecture, Fukui Prefecture, Saga Prefecture, Yamaguchi Prefecture, Okayama Prefecture, Nara Prefecture, Shimane Prefecture, Gunma Prefecture, Miyazaki Prefecture, Tokushima Prefecture, Yamagata Prefecture, Hyōgo Prefecture, Kyōto Prefecture, Saitama Prefecture, Aichi Prefecture, Niigata Prefecture, Hiroshima Prefecture, Shiga Prefecture, Kagawa Prefecture, Akita Prefecture, Mie Prefecture, Ehime Prefecture, Kanagawa Prefecture, Ibaraki Prefecture, Toyama Prefecture, Kumamoto Prefecture, Ishikawa Prefecture, Tottori Prefecture, Iwate Prefecture, Chiba Prefecture, Okinawa Prefecture, Fukushima Prefecture, Shizuoka Prefecture, Gifu Prefecture, Nagasaki Prefecture\n\nTarget industry options:\n\n\n💡\n\n\"Admin\", \"Analytics\", \"Applications\", \"Cloud\", \"Compliance\", \"Controller\", \"Customer Service\", \"Cyber Security\", \"Data Engineering\", \"Devops\", \"Digital\", \"Distribution\", \"Engineering\", \"Finance\", \"Fraud\", \"Hiring\", \"HR\", \"Infrastructure\", \"Inside Sales\", \"IT\", \"Learning\", \"Legal\", \"Marketing\", \"Network Security\", \"Operations\", \"Product Management\", \"Product Security\", \"Production\", \"Purchase\", \"Research\", \"Risk\", \"Sales\", \"Security\", \"Support\", \"Testing\", \"Training”\n\nRoles options:\n\n💡\n\n \"Founder\", \"Chairman\", \"President\", \"CEO\", \"CXO\", \"Vice President\", \"Director\", \"Head\", \"Manager\", \"Senior\", \"Junior\", \"Entry Level\", \"Executive”\n",
+        "height": 3264,
+        "width": 1088
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4384,
+        -176
+      ],
+      "id": "5972fade-9daa-413f-afef-81a893e621bb",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": " Lead Scraper Agent",
+        "height": 640,
+        "width": 2240
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2864,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "c7163470-c07f-4f49-a976-ee9d6ba63158",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "**Modify the AI Agent system prompt:**\nChange the niche and service description to match your agency.\n\nExample niches:\n- Digital marketing agency targeting e-commerce brands\n- AI automation agency targeting B2B SaaS\n- Web design agency targeting professional services\n\n**Output values the AI must return:**\n`Client`: `Ideal` | `Potential` | `Not a Fit`\n`Icebreaker`: personalised 1-line opener\n`Reason`: why it's a fit or not",
+        "height": 300,
+        "width": 400,
+        "color": 5
+      },
+      "id": "a7a979d1-90ff-4854-8149-acf3505856fa",
+      "name": "⚙️ Prompt Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2768,
+        1536
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 3,
+              "triggerAtHour": 19
+            }
+          ]
+        }
+      },
+      "id": "368b6e83-9bcb-43b1-b57e-42a755196bb9",
+      "name": "⏰ Schedule — Every 3 Days 7:00PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2144,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Apify Raw"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "35e094d8-f6af-4900-9201-af5b83de2a47",
+      "name": "📊 Apify Raw — Get Pending Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1936,
+        1152
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "maxItems": 50
+      },
+      "id": "43f8fe4c-20f1-42f1-a72a-bbb7252c9a39",
+      "name": "✂️ Limit — Max 50 Leads Per Run",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e5ca2370-4a84-4bdf-bce7-1a2691956748",
+      "name": "🔁 Loop — Each Lead",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1488,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Organization description: {{ $json['Description'] }}\n\nCompany website: {{ $json['Website'] }}\n\nLinkedIn URL of decision-maker: {{ $json['LinkedIn URL'] }}\n\nJob title: {{ $json['Title'] }}\n\nCompany name: {{ $json['Company'] }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a senior SDR (Sales Development Representative) for a digital marketing and AI automation agency.\n\nYour task is to evaluate if this prospect is a good fit for our services.\n\nWe help small to mid-size businesses (2–500 employees) automate their marketing, lead generation, and client acquisition using AI tools and n8n workflows.\n\nOur ideal client:\n- Has a real business with online presence\n- Is a decision-maker (Founder, CEO, Director, VP)\n- Sells a service or product priced above $500\n- Is likely overwhelmed with manual sales or marketing tasks\n- Could benefit from automation or AI-driven lead gen\n\nYour output must be a JSON array with exactly one object:\n[\n  {\n    \"Client\": \"Ideal\" | \"Potential\" | \"Not a Fit\",\n    \"Icebreaker\": \"A short, specific, personalised opening line referencing something real about their company or role. Max 25 words. Sound human, not robotic.\",\n    \"Reason\": \"Brief reason for your classification. Max 15 words.\"\n  }\n]\n\nReturn ONLY the JSON. No explanation, no markdown, no extra text."
+        }
+      },
+      "id": "05f9a65c-596f-4b55-bc06-a0405d1fa5f5",
+      "name": "🤖 AI SDR — Qualify Lead + Write Icebreaker",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -1264,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "[{\"Client\": \"Ideal\", \"Icebreaker\": \"Saw your agency scaled to 3 offices — automation could help you keep margins high as you grow.\", \"Reason\": \"Growing service business, decision-maker, benefits from automation.\"}]"
+      },
+      "id": "0d541609-a844-416d-bb9e-698a7cf6cfe6",
+      "name": "📐 Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        -1120,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "id": "c834a60a-b073-4d1a-bd00-fede389e83a6",
+      "name": "🧠 GPT-4o — Fallback Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1264,
+        1344
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "c7BsaN5MYlmpynG8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.output[0].Client }}",
+              "rightValue": "Not a Fit",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals",
+                "name": "filter.operator.notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "08f5fa1f-2cb6-4a52-876c-dce2cf49c05a",
+      "name": "🔀 Is Lead Qualified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -960,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1661841420",
+          "mode": "list",
+          "cachedResultName": "icp"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "First Name": "={{ $('🔁 Loop — Each Lead').item.json['First Name'] }}",
+            "Last Name": "={{ $('🔁 Loop — Each Lead').item.json['Last Name'] }}",
+            "Email": "={{ $('🔁 Loop — Each Lead').item.json['Email'] }}",
+            "LinkedIn URL": "={{ $('🔁 Loop — Each Lead').item.json['LinkedIn URL'] }}",
+            "Company": "={{ $('🔁 Loop — Each Lead').item.json['Company'] }}",
+            "Website": "={{ $('🔁 Loop — Each Lead').item.json['Website'] }}",
+            "Title": "={{ $('🔁 Loop — Each Lead').item.json['Title'] }}",
+            "Country": "={{ $('🔁 Loop — Each Lead').item.json['Country'] }}",
+            "ICP Score": "={{ $json.output[0].Client }}",
+            "Icebreaker": "={{ $json.output[0].Icebreaker }}",
+            "Reason": "={{ $json.output[0].Reason }}",
+            "Email Verified": "Pending",
+            "Sent to Campaign": "No",
+            "Qualified At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "2af66a17-5029-4cb6-9836-76fe258b12fd",
+      "name": "✅ ICP Sheet — Append Qualified Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -768,
+        1136
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Apify Raw"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('🔁 Loop — Each Lead').item.json['Email'] }}",
+            "Status": "Qualified",
+            "Processed At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "410d8776-263c-4e57-8499-e8504188566e",
+      "name": "📝 Apify Raw — Mark as Qualified",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -544,
+        1136
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Apify Raw"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('🔁 Loop — Each Lead').item.json['Email'] }}",
+            "Status": "Rejected",
+            "Processed At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "10eaf117-7538-4579-98a9-20e2a9a3077e",
+      "name": "❌ Apify Raw — Mark as Rejected",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -720,
+        1344
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "\n**Trigger:** Every 3 days at 7:00 PM (30 min after Scraper)\n\n**What it does:**\n1. Reads leads from `Apify Raw` where `Status = Pending`\n2. Limits to 50 leads per run to stay within API limits\n3. Loops through each lead one at a time\n4. Sends org description, website, and LinkedIn URL to Claude Sonnet\n5. AI decides: `Ideal`, `Potential`, or `Not a Fit`\n6. Also generates a personalised icebreaker for each Ideal/Potential lead\n7. If Ideal or Potential → appends to `ICP` sheet with icebreaker\n8. If Not a Fit → marks lead as `Rejected` in Apify Raw\n9. All processed leads get updated status in Apify Raw\n\n**Sheets used:**\n- `Apify Raw` — source of unqualified leads\n- `ICP` — destination for qualified leads ready for email verification\n\n**Setup:**\n- Add OpenAI credential \n- Modify the AI system prompt to match your niche and service offering",
+        "height": 532,
+        "width": 600,
+        "color": 6
+      },
+      "id": "dc6fd37c-2e28-42a0-b9bf-36f11652030d",
+      "name": "📋 Agent Notes1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2864,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "content": " Qualifier Agent",
+        "height": 992,
+        "width": 2608
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2944,
+        864
+      ],
+      "typeVersion": 1,
+      "id": "ebd66dfe-fba7-4fe3-8b2c-14ce7e524785",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "**Reoon status values:**\n- `safe` → deliverable, send it\n- `risky` → might bounce, skip\n- `invalid` → bad email, skip\n- `disposable` → throwaway, skip\n- `unknown` → inconclusive, your call\n\n**Alternative verifiers:**\n- ZeroBounce: https://www.zerobounce.net/\n- NeverBounce: https://neverbounce.com/\n- Bouncer: https://usebouncer.com/",
+        "height": 240,
+        "width": 380,
+        "color": 5
+      },
+      "id": "8a7564e5-a7f3-4f95-9676-f6af8c6ccb3e",
+      "name": "⚙️ Verifier Options",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2640,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 3,
+              "triggerAtHour": 19,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "6690b8af-a9c6-4ab9-9b4b-7f7a1afd8eb9",
+      "name": "⏰ Schedule — Every 3 Days 7:30PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2080,
+        2448
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1661841420",
+          "mode": "list",
+          "cachedResultName": "icp"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email Verified",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aeeab0e9-5e8a-41ce-b363-8252ad9eb8e6",
+      "name": "📊 ICP Sheet — Get Unverified Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1856,
+        2448
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ev1",
+              "name": "Email",
+              "value": "={{ $json['Email'] }}",
+              "type": "string"
+            },
+            {
+              "id": "ev2",
+              "name": "row_number",
+              "value": "={{ $json.row_number }}",
+              "type": "string"
+            },
+            {
+              "id": "ev3",
+              "name": "ReoonKey",
+              "value": "YOUR_REOON_API_KEY",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9eea8f44-22eb-4101-a7d5-fd597c31e27e",
+      "name": "✏️ Prepare Verification Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1424,
+        2448
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://emailverifier.reoon.com/api/v1/verify?email={{ encodeURIComponent($json['Email']) }}&key={{ $json.ReoonKey }}&mode=power",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "81b1546b-b43c-4173-9e67-7c6c92ee9903",
+      "name": "🔍 Reoon — Verify Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1200,
+        2448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "es1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "safe",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "595729d7-2030-425a-81ba-0470814f683c",
+      "name": "🔀 Is Email Safe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -976,
+        2448
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1661841420",
+          "mode": "list",
+          "cachedResultName": "icp"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('✏️ Prepare Verification Fields').item.json.Email }}",
+            "Email Verified": "Yes",
+            "Verified At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "55fd27bb-5ada-4c47-92bc-d7c5fbd6a123",
+      "name": "✅ ICP Sheet — Mark Email Verified",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -752,
+        2368
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1661841420",
+          "mode": "list",
+          "cachedResultName": "icp"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('✏️ Prepare Verification Fields').item.json.Email }}",
+            "Email Verified": "No",
+            "Verified At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "f81d6e31-d06b-4f13-9210-dd2a563d3d93",
+      "name": "❌ ICP Sheet — Mark Email Invalid",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -752,
+        2560
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "\n**Trigger:** Every 3 days at 7:30 PM (30 min after ICP Qualifier)\n\n**What it does:**\n1. Reads all leads from `ICP` sheet where `Email Verified = Pending`\n2. Loops through each lead\n3. Sends the email to Reoon's API for real-time verification\n4. Checks if the email status = `safe` (deliverable)\n5. If safe → marks `Email Verified = Yes` + records verified date\n6. If unsafe / risky → marks `Email Verified = No` + records reason\n7. Only verified leads will be picked up by Agent 4 for campaign sending\n\n**Sheets used:**\n- `ICP` — reads qualified leads, updates verification status\n\n**Setup:**\n- Get Reoon API key → https://www.reoon.com/email-verifier/\n- Add key directly in the HTTP node or via n8n credential\n- You can swap Reoon for any other verifier (ZeroBounce, NeverBounce, Bouncer)",
+        "height": 492,
+        "width": 580,
+        "color": 4
+      },
+      "id": "3a53a007-44da-4ac5-888f-4e223daef436",
+      "name": "📋 Agent Notes2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2752,
+        2144
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f5218abe-7924-47b6-9b68-7739e2859031",
+      "name": "🔁 Loop — Each Lead1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1632,
+        2448
+      ]
+    },
+    {
+      "parameters": {
+        "content": " Email Verifier Agent",
+        "height": 864,
+        "width": 2256
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2688,
+        2112
+      ],
+      "typeVersion": 1,
+      "id": "98dd7659-bf30-4f2d-a976-b313d8630629",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "**Find your Campaign ID:**\n1. Go to Instantly → Campaigns\n2. Open your campaign\n3. Copy the ID from the URL\n\n**Custom variable in email template:**\nUse `{{icebreaker}}` in your Instantly email body\nIt will be replaced with the AI-generated icebreaker.\n\n**Alternative senders:**\n- Smartlead: https://smartlead.ai/\n- Lemlist: https://lemlist.com/\n- Apollo: https://apollo.io/",
+        "height": 304,
+        "width": 380,
+        "color": 5
+      },
+      "id": "85e08a9a-ef3f-46bd-8a31-aecb9d0bf4f0",
+      "name": "⚙️ Instantly Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2416,
+        3744
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 3,
+              "triggerAtHour": 20
+            }
+          ]
+        }
+      },
+      "id": "a3db1406-26e3-4cd2-8719-69edf5e526ba",
+      "name": "⏰ Schedule — Every 3 Days 8:00PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1856,
+        3584
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1661841420",
+          "mode": "list",
+          "cachedResultName": "icp"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email Verified",
+              "lookupValue": "Yes"
+            },
+            {
+              "lookupColumn": "Sent to Campaign",
+              "lookupValue": "No"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "75028ccc-6106-405f-915c-39f298c37d85",
+      "name": "📊 ICP Sheet — Get Verified Unsent Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1680,
+        3584
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "df47c84b-d0ad-4637-b0ac-a47b62bdad51",
+      "name": "🔁 Loop — Each Verified Lead",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1456,
+        3584
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads/add",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"campaign_id\": \"YOUR_CAMPAIGN_ID\",\n  \"leads\": [\n    {\n      \"email\": \"{{ $json['Email'] }}\",\n      \"firstName\": \"{{ $json['First Name'] }}\",\n      \"lastName\": \"{{ $json['Last Name'] }}\",\n      \"companyName\": \"{{ $json['Company'] }}\",\n      \"website\": \"{{ $json['Website'] }}\",\n      \"customFields\": {\n        \"icebreaker\": \"{{ $json['Icebreaker'] }}\",\n        \"title\": \"{{ $json['Title'] }}\",\n        \"linkedin\": \"{{ $json['LinkedIn URL'] }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "1ab0e7bb-6d01-49d8-9aec-0fd4546f342a",
+      "name": "📨 Instantly — Add Lead to Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1232,
+        3584
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=1661841420",
+          "mode": "list",
+          "cachedResultName": "icp"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('🔁 Loop — Each Verified Lead').item.json['Email'] }}",
+            "Sent to Campaign": "Yes",
+            "Sent At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "fd50a343-58ce-4c5b-83fa-ba271356799f",
+      "name": "✅ ICP Sheet — Mark as Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1008,
+        3584
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=675359165",
+          "mode": "list",
+          "cachedResultName": "Sent to Instantly"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "First Name": "={{ $('🔁 Loop — Each Verified Lead').item.json['First Name'] }}",
+            "Last Name": "={{ $('🔁 Loop — Each Verified Lead').item.json['Last Name'] }}",
+            "Email": "={{ $('🔁 Loop — Each Verified Lead').item.json['Email'] }}",
+            "Company": "={{ $('🔁 Loop — Each Verified Lead').item.json['Company'] }}",
+            "ICP Score": "={{ $('🔁 Loop — Each Verified Lead').item.json['ICP Score'] }}",
+            "Icebreaker": "={{ $('🔁 Loop — Each Verified Lead').item.json['Icebreaker'] }}",
+            "Sent At": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "ae734f33-a86a-4892-bcf1-fcaa8674531b",
+      "name": "📋 Sent Log — Archive Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -800,
+        3584
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "\n\n**Trigger:** Every 3 days at 8:00 PM (30 min after Email Verifier)\n\n**What it does:**\n1. Reads leads from `ICP` sheet where:\n   - `Email Verified = Yes`\n   - `Sent to Campaign = No`\n2. Loops through each verified lead\n3. POSTs each lead to your Instantly.ai campaign via API\n4. Includes firstName, lastName, email, company, and custom icebreaker field\n5. Marks `Sent to Campaign = Yes` + records sent timestamp in ICP sheet\n6. Appends lead to `Sent to Instantly` sheet as a log\n7. Only sends verified emails — zero bounce risk\n\n**Sheets used:**\n- `ICP` — source of verified, qualified leads\n- `Sent to Instantly` — archive log of all launched leads\n\n**Setup:**\n- Get Instantly API key → https://instantly.ai/\n- Replace `Your API KEY` in Authorization header\n- Replace `Your Campaign Id` with your actual campaign ID\n- Icebreaker is passed as a custom variable — map it in Instantly template as {{icebreaker}}",
+        "height": 500,
+        "width": 600,
+        "color": 7
+      },
+      "id": "c0452528-1c60-4d93-b39e-388cd3dbbc76",
+      "name": "📋 Agent Notes3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2512,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "content": " Campaign Sender Agent",
+        "height": 944,
+        "width": 1936
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2560,
+        3120
+      ],
+      "typeVersion": 1,
+      "id": "06f84b55-b500-43c4-ad12-83cbe5dc278f",
+      "name": "Sticky Note3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "⏰ Schedule — Every 3 Days 6:30PM": {
+      "main": [
+        [
+          {
+            "node": "📊 Target Market — Get Pending Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Target Market — Get Pending Rows": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Target Market Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔁 Loop — Each Target Market Row": {
+      "main": [
+        [
+          {
+            "node": "🕷️ Apify — Scrape LinkedIn Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🕷️ Apify — Scrape LinkedIn Leads": {
+      "main": [
+        [
+          {
+            "node": "✏️ Map Lead Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✏️ Map Lead Fields": {
+      "main": [
+        [
+          {
+            "node": "📥 Apify Raw — Append New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 Apify Raw — Append New Leads": {
+      "main": [
+        [
+          {
+            "node": "✅ Target Market — Mark as Scraped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Target Market — Mark as Scraped": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Target Market Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ Schedule — Every 3 Days 7:00PM": {
+      "main": [
+        [
+          {
+            "node": "📊 Apify Raw — Get Pending Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Apify Raw — Get Pending Leads": {
+      "main": [
+        [
+          {
+            "node": "✂️ Limit — Max 50 Leads Per Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✂️ Limit — Max 50 Leads Per Run": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔁 Loop — Each Lead": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI SDR — Qualify Lead + Write Icebreaker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI SDR — Qualify Lead + Write Icebreaker": {
+      "main": [
+        [
+          {
+            "node": "🔀 Is Lead Qualified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📐 Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🤖 AI SDR — Qualify Lead + Write Icebreaker",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Is Lead Qualified?": {
+      "main": [
+        [
+          {
+            "node": "✅ ICP Sheet — Append Qualified Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ Apify Raw — Mark as Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ ICP Sheet — Append Qualified Lead": {
+      "main": [
+        [
+          {
+            "node": "📝 Apify Raw — Mark as Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Apify Raw — Mark as Qualified": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ Apify Raw — Mark as Rejected": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 GPT-4o — Fallback Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "🤖 AI SDR — Qualify Lead + Write Icebreaker",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ Schedule — Every 3 Days 7:30PM": {
+      "main": [
+        [
+          {
+            "node": "📊 ICP Sheet — Get Unverified Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 ICP Sheet — Get Unverified Leads": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Lead1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✏️ Prepare Verification Fields": {
+      "main": [
+        [
+          {
+            "node": "🔍 Reoon — Verify Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Reoon — Verify Email": {
+      "main": [
+        [
+          {
+            "node": "🔀 Is Email Safe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Is Email Safe?": {
+      "main": [
+        [
+          {
+            "node": "✅ ICP Sheet — Mark Email Verified",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ ICP Sheet — Mark Email Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ ICP Sheet — Mark Email Verified": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Lead1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ ICP Sheet — Mark Email Invalid": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Lead1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔁 Loop — Each Lead1": {
+      "main": [
+        [
+          {
+            "node": "✏️ Prepare Verification Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ Schedule — Every 3 Days 8:00PM": {
+      "main": [
+        [
+          {
+            "node": "📊 ICP Sheet — Get Verified Unsent Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 ICP Sheet — Get Verified Unsent Leads": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Verified Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔁 Loop — Each Verified Lead": {
+      "main": [
+        [
+          {
+            "node": "📨 Instantly — Add Lead to Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📨 Instantly — Add Lead to Campaign": {
+      "main": [
+        [
+          {
+            "node": "✅ ICP Sheet — Mark as Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ ICP Sheet — Mark as Sent": {
+      "main": [
+        [
+          {
+            "node": "📋 Sent Log — Archive Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Sent Log — Archive Lead": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop — Each Verified Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "95520eae-5c3c-43aa-b5af-d7499b4c407f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dddd033e6e59c1136bda720d43bd1b7f5eacfb5eaddbcf31bc4df1d527f27642"
+  },
+  "id": "GR3jeNk86oFcBMdpgo51M",
+  "tags": [
+    {
+      "updatedAt": "2026-03-24T16:21:46.781Z",
+      "createdAt": "2026-03-24T16:21:46.781Z",
+      "id": "mwzCMt1ablP4VLeq",
+      "name": "Lead Gen"
+    }
+  ]
+}
