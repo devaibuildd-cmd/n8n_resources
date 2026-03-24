@@ -1,0 +1,3458 @@
+{
+  "name": "EMAIL AGENT SYSTEM",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Research Agent\n**Trigger:** Every Sunday at 11pm\n\n**What it does:**\n1. Reads new leads from Google Sheets (no emails written yet)\n2. Limits to 50 leads per run\n3. Scrapes LinkedIn profile + recent posts via Relevance AI\n4. Researches company via Perplexity (web search)\n5. Analyses prospect using GPT-4.1-mini — finds pain points + personalization\n6. Writes Email #1, #2, #3 using Claude Sonnet (JSON output)\n7. Assigns Time Zone group (T1=US/CA, T2=Europe, T3=AU/NZ, T4=Other)\n8. Rotates Sender Email across 3 inboxes\n9. Generates secure UUID opt-out token\n10. Writes everything back to Google Sheets\n\n**Fix applied:** Emails node now parses Claude JSON output cleanly. Token is now a UUID.",
+        "height": 420,
+        "width": 700,
+        "color": 4
+      },
+      "id": "333e6c88-03fd-4c5c-9efe-3d84ce3f7ee5",
+      "name": "📋 Research Agent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        4144
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * SUN"
+            }
+          ]
+        }
+      },
+      "id": "e1a420d6-0293-4332-9637-827f43a8d67a",
+      "name": "Schedule Trigger — Sunday 11pm",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1952,
+        4176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        }
+      },
+      "id": "251941ad-9342-4952-9092-6caad0ff2daf",
+      "name": "Read New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2208,
+        4176
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "maxItems": 50
+      },
+      "id": "7b36ffeb-590c-45e4-ac05-1d5c5afffd0d",
+      "name": "Limit — 50 per run",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        2448,
+        4176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_RELEVANCE_AI_WEBHOOK_URL",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "YOUR_RELEVANCE_AI_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n\"linkedin_url\":\"{{ $json[\"LinkedIn URL\"] }}\",\n\"last_x_days\":30\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "d63ccf6c-ad2a-44ac-b4c8-bc55f5a697b0",
+      "name": "Scrape LinkedIn Profile + Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2688,
+        4176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"sonar\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a researcher on a business development team. Find comprehensive, accurate research about a prospect company — what they do, recent news, achievements, and context that would be valuable for a cold outreach email.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Find detailed info about {{ $('Scrape LinkedIn Profile + Posts').last().json.linkedin_profile_details_data.company }}. Their website: {{ $('Scrape LinkedIn Profile + Posts').last().json.linkedin_profile_details_data.company_website }}. Include: what they do, recent news/milestones, company size, industry context.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "ca4ce908-619d-458f-8514-facf616b08e3",
+      "name": "Research Company — Perplexity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2896,
+        4176
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iQw6DDxp3XxHutAS",
+          "name": "KIE AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "# Overview\nYou are part of the cold email team at YOUR_AGENCY_NAME, which is an AI Automation & Marketing Agency.\n\nYOUR_AGENCY_NAME offers the following services:\n- Business Automation: Automating internal business processes to save time, money or reduce error.\n- Marketing Solutions: Building marketing solutions like funnels, landing pages, etc.\n- Automation Consulting: Advice on automating various processes.\n\n# Task\nAnalyse the research on a prospect to find:\n\n*1. Personalization opportunity:* Find the top personalization opportunities:\n- Referencing content they've posted [best]\n- Mentioning a specific achievement or news\n- Personalized compliment about their work\n- Mentioning unique aspects of their professional background\nMust be highly specific — reader thinks \"Whoa, this is for me.\"\n\n*2. Pain points and solutions:* Identify 2 biggest pain points YOUR_AGENCY_NAME can solve. Define a specific, actionable offer (not broad services — exactly what process gets automated).\n\n# Output Format\n*Personalization*\n1. Opportunity: HERE\nSupporting Evidence: HERE\n\n⸻\n\n*Pain Points & Solutions*\n1. Pain Point: HERE\nSupporting Evidence: HERE\nOffer: HERE\n\n2. Pain Point: HERE\nSupporting Evidence: HERE\nOffer: HERE",
+              "role": "system"
+            },
+            {
+              "content": "=Prospect: {{ $('Scrape LinkedIn Profile + Posts').last().json.linkedin_profile_details_data.full_name }} | {{ $('Scrape LinkedIn Profile + Posts').last().json.linkedin_profile_details_data.headline }}\nCompany: {{ $('Scrape LinkedIn Profile + Posts').last().json.linkedin_profile_details_data.company }}\n\nLinkedIn Data:\n{{ JSON.stringify($('Scrape LinkedIn Profile + Posts').last().json, null, 2) }}\n\nCompany Research:\n{{ $('Research Company — Perplexity').last().json.choices[0].message.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d8ec1fc2-7a28-474c-b1bc-b2293003681d",
+      "name": "Analyse Prospect",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        3120,
+        4176
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "c7BsaN5MYlmpynG8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "anthropic/claude-sonnet-4-5",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a cold email copywriter for YOUR_AGENCY_NAME, an AI Automation Agency offering process automation, marketing automation and consulting.\n\nWrite a 3-email cold sequence given: Research, Analysis, and the tactic below. Emails sent 2 days apart.\n\n# Email #1 Tactic\nSubject: Max 4 words. Include prospect/company name when natural. Zero spam words. Create curiosity.\n\nBody structure:\na) Hook (2-3 sentences): Use the personalization from analysis. Make them stop scrolling.\nb) Pain point (1-2 sentences): Name a pain point. Don't pitch a solution yet.\nc) CTA: Mention you've been solving that problem and invite a 15-min call on {{ ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][(new Date().getDay() + 2) % 7] }}. End with a clear next step like \"Should I book you in?\"\n\nRules: Max 100 words. Short paragraphs. Conversational tone. \"You\"-focused. 6th-grade reading level. No bullets, images, attachments, or formal openers. Always start with \"Hey {{ $('Limit').item.json['First Name'] }} ,\". Never \"Hope you're doing well.\"\n\n# Email #2 Tactic (Follow-up — sent as reply in thread)\nSubject: Same as Email#1 (thread reply, so RE: handled automatically)\nBody: Reference Email#1 briefly. Add a new insight, stat or relevant case study. Keep CTA. Max 80 words.\n\n# Email #3 Tactic (Final follow-up — sent as reply in thread)\nSubject: Same as Email#1\nBody: Short breakup email. Acknowledge they're busy. Give one last value statement. Keep door open. Max 60 words.\n\n# Output Format — respond ONLY with valid JSON, no markdown fences:\n{\n  \"Email#1 Subject\": \"\",\n  \"Email#1 Body\": \"\",\n  \"Email#2 Subject\": \"\",\n  \"Email#2 Body\": \"\",\n  \"Email#3 Subject\": \"\",\n  \"Email#3 Body\": \"\"\n}",
+              "role": "system"
+            },
+            {
+              "content": "=Research from LinkedIn + web:\n{{ JSON.stringify($('Scrape LinkedIn Profile + Posts').last().json, null, 2) }}\n\nCompany Research:\n{{ $('Research Company — Perplexity').last().json.choices[0].message.content }}\n\nAnalysis:\n{{ $json.message.content[0].text }}\n\nProspect name: {{ $('Limit — 50 per run').item.json['First Name'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e9080d31-a0b9-4f97-91b9-0b6ace351f6f",
+      "name": "Write Email #1 #2 #3",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1920,
+        4416
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "c7BsaN5MYlmpynG8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\n// Parse the JSON output from Claude into individual fields\nconst raw = $input.item.json.message?.content?.[0]?.text || $input.item.json.text || '';\nlet parsed;\ntry {\n  const clean = raw.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(clean);\n} catch(e) {\n  throw new Error(\"Failed to parse email JSON from AI: \" + raw.substring(0, 200));\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    \"Email#1 Subject\": parsed[\"Email#1 Subject\"] || '',\n    \"Email#1 Body\":    parsed[\"Email#1 Body\"] || '',\n    \"Email#2 Subject\": parsed[\"Email#2 Subject\"] || '',\n    \"Email#2 Body\":    parsed[\"Email#2 Body\"] || '',\n    \"Email#3 Subject\": parsed[\"Email#3 Subject\"] || '',\n    \"Email#3 Body\":    parsed[\"Email#3 Body\"] || ''\n  }\n};\n"
+      },
+      "id": "bd9937ad-6a2f-4ba5-b6be-f0c1f6feab11",
+      "name": "Parse Email JSON Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst country = (item.json[\"Country \"] || \"\").toLowerCase().trim();\nconst t1 = [\"usa\",\"united states\",\"canada\"];\nconst t2 = [\"albania\",\"andorra\",\"armenia\",\"austria\",\"azerbaijan\",\"belarus\",\"belgium\",\"bosnia and herzegovina\",\"bulgaria\",\"croatia\",\"cyprus\",\"czech republic\",\"czechia\",\"denmark\",\"estonia\",\"finland\",\"france\",\"georgia\",\"germany\",\"greece\",\"hungary\",\"iceland\",\"ireland\",\"italy\",\"kosovo\",\"latvia\",\"liechtenstein\",\"lithuania\",\"luxembourg\",\"malta\",\"moldova\",\"monaco\",\"montenegro\",\"netherlands\",\"north macedonia\",\"norway\",\"poland\",\"portugal\",\"romania\",\"russia\",\"san marino\",\"serbia\",\"slovakia\",\"slovenia\",\"spain\",\"sweden\",\"switzerland\",\"turkey\",\"ukraine\",\"united kingdom\",\"united kingdom (uk)\",\"uk\",\"great britain\",\"vatican city\"];\nconst t3 = [\"australia\",\"new zealand\"];\n\nif (t1.includes(country))       item.json[\"Time Zone\"] = \"T1\";\nelse if (t2.includes(country))  item.json[\"Time Zone\"] = \"T2\";\nelse if (t3.includes(country))  item.json[\"Time Zone\"] = \"T3\";\nelse                             item.json[\"Time Zone\"] = \"T4\";\nreturn item;\n"
+      },
+      "id": "e35f5427-f80f-42f4-9461-74d878dd9edf",
+      "name": "Assign Timezone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst senders = [\"sender1@yourdomain.com\", \"sender2@yourdomain.com\", \"sender3@gmail.com\"];\nconst idx = $itemIndex % senders.length;\n$input.item.json[\"Sender Email\"] = senders[idx];\nreturn $input.item;\n"
+      },
+      "id": "995a655f-a6da-462a-a382-225ca32c419d",
+      "name": "Rotate Sender Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst token = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>\n  (c ^ (typeof crypto !== 'undefined' ? crypto.getRandomValues(new Uint8Array(1))[0] : Math.random() * 256 | 0) & 15 >> c / 4).toString(16));\n$input.item.json[\"Token\"] = token;\nreturn $input.item;\n"
+      },
+      "id": "288a231a-344f-43ab-9d37-ac33929e1d32",
+      "name": "Generate UUID Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3184,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#1 Subject": "={{ $json['Email#1 Subject'] }}",
+            "Email#1 Body": "={{ $json['Email#1 Body'] }}",
+            "Email#2 Subject": "={{ $json['Email#2 Subject'] }}",
+            "Email#2 Body": "={{ $json['Email#2 Body'] }}",
+            "Email#3 Subject": "={{ $json['Email#3 Subject'] }}",
+            "Email#3 Body": "={{ $json['Email#3 Body'] }}",
+            "Time Zone": "={{ $json['Time Zone'] }}",
+            "Sender Email": "={{ $json['Sender Email'] }}",
+            "Token": "={{ $json['Token'] }}"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "751eeefa-7320-402d-998c-63db504be4e4",
+      "name": "Save Enriched Lead + Emails",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3408,
+        4416
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "RESEARCH AGENT",
+        "height": 720,
+        "width": 2512
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1088,
+        3936
+      ],
+      "typeVersion": 1,
+      "id": "1ea66c96-bb0e-472e-b168-dd3df102d1e0",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Agent 1 — Initial Email Sender\n**Trigger:** Every Monday at 11am\n\n**What it does:**\n1. Reads leads from Google Sheets where Email#1 NOT sent and not opted out\n2. Filters out leads without emails written (research not done yet)\n3. Routes each lead to its assigned sender inbox via Switch\n4. For each sender: loops through leads, sends Email#1 to prospect's real email, waits 2–7 random minutes (human-like pacing), marks sent + stores Gmail Message ID + Thread ID\n\n",
+        "height": 400,
+        "width": 684,
+        "color": 6
+      },
+      "id": "7211545e-7b6a-4863-a6bd-e0dc5be3f300",
+      "name": "📧 Agent 1 — Initial Email Sender",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        5856
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 11 * * Mon"
+            }
+          ]
+        }
+      },
+      "id": "e478a66c-f41f-43c5-9af3-233bad2c3bc7",
+      "name": "Schedule Trigger — Monday 11am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2016,
+        6000
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        }
+      },
+      "id": "f76182e0-5036-4ff2-9979-83d4c2c4d3a7",
+      "name": "Read Leads — Email#1 Unsent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2240,
+        6000
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "58927235",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender1@yourdomain.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c9a38e29",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender2@yourdomain.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e73e6cd4",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender3@gmail.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5fde7d65-89c4-4dda-a90f-4565343c1012",
+      "name": "Route by Sender Email",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2464,
+        5984
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "a08b7a2f-9db7-4270-bcbd-1f20eae06d8d",
+      "name": "Loop — s1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2688,
+        5520
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json['Email Address'] }}",
+        "subject": "={{ $json['Email#1 Subject'] }}",
+        "message": "={{ $json['Email#1 Body'] }}<br><br>\n<a href=\"https://YOUR-N8N-INSTANCE.app.n8n.cloud/webhook/unsubscribe?tkn={{ $json.Token }}\">Click here to unsubscribe</a>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "715c4314-899a-4208-93a6-e2b89c73ce9f",
+      "name": "Send Email#1 — s1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2912,
+        5328
+      ],
+      "webhookId": "a6d59140-2c48-4bba-b481-76b7acdf0e14",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "5fac984f-efcd-4559-a69a-c7ae00985c7b",
+      "name": "Wait 2–7m — s1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3136,
+        5504
+      ],
+      "webhookId": "ec71854e-5fb4-4f0a-bdf7-580cc1254092"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "10371d2a-cc48-45f7-a357-119a2c351989",
+      "name": "Loop — s2",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2688,
+        6000
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json['Email Address'] }}",
+        "subject": "={{ $json['Email#1 Subject'] }}",
+        "message": "={{ $json['Email#1 Body'] }}<br><br>\n<a href=\"https://YOUR-N8N-INSTANCE.app.n8n.cloud/webhook/unsubscribe?tkn={{ $json.Token }}\">Click here to unsubscribe</a>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b4187bfe-7e5a-4c0e-a98b-e5191175c78c",
+      "name": "Send Email#1 — s2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2912,
+        5824
+      ],
+      "webhookId": "9256c777-da1c-411c-8ebd-487c1c870029",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "15f86181-2885-4c5f-b344-b525bd7bace2",
+      "name": "Wait 2–7m — s2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3136,
+        5984
+      ],
+      "webhookId": "be03a429-53ec-4300-b6be-fe575c4dce58"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "5d1a84a0-0bac-4bbf-b676-bba8fb7bfa2c",
+      "name": "Loop — s3",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2688,
+        6480
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json['Email Address'] }}",
+        "subject": "={{ $json['Email#1 Subject'] }}",
+        "message": "={{ $json['Email#1 Body'] }}<br><br>\n<a href=\"https://YOUR-N8N-INSTANCE.app.n8n.cloud/webhook/unsubscribe?tkn={{ $json.Token }}\">Click here to unsubscribe</a>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "dc7ddacd-bbf3-45e7-8c16-eb1401508f8f",
+      "name": "Send Email#1 — s3",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2912,
+        6288
+      ],
+      "webhookId": "03d4ad39-2da5-4707-b955-bf8d77bedde0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "0b1815fe-315d-47f2-bf52-67c6a276eed3",
+      "name": "Wait 2–7m — s3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3136,
+        6464
+      ],
+      "webhookId": "86df3cbc-257c-4e8b-b0f7-26dcc7ad382f"
+    },
+    {
+      "parameters": {
+        "content": "AGENT 1",
+        "height": 1392,
+        "width": 2272
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1184,
+        5264
+      ],
+      "typeVersion": 1,
+      "id": "d2725856-d65f-49d4-b20b-f442a8d603c5",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#1 Sent": "Yes",
+            "Message ID": "={{ $json.id }}",
+            "Thread ID": "={{ $json.threadId || $json.id }}"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "7dd83b8f-9bfe-4f37-98ae-675b98690976",
+      "name": "Mark Email1 Sent — s1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2912,
+        5520
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#1 Sent": "Yes",
+            "Message ID": "={{ $json.id }}",
+            "Thread ID": "={{ $json.threadId || $json.id }}"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "a462a3c6-4001-4e96-a09b-f212fc8f8ffc",
+      "name": "Mark Email1 Sent — s2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2912,
+        6000
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#1 Sent": "Yes",
+            "Message ID": "={{ $json.id }}",
+            "Thread ID": "={{ $json.threadId || $json.id }}"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "2f2e13a4-269b-4e79-928c-41194b8f2df2",
+      "name": "Mark Email1 Sent — s3",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2912,
+        6480
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Agent 2: Follow-Up Email#2\n**Trigger:** Every Wednesday at 11am\n\n**What it does:**\n1. Reads leads where Email#1 was sent, Email#2 NOT sent, not replied, not opted out\n2. Routes each lead to its sender inbox\n3. Per lead: checks Gmail inbox for a reply from the prospect\n4. If replied → marks Replied=Yes in Sheets, skips send\n5. If not replied → builds an in-thread RFC-2822 reply (Email#2), sends via Gmail API, waits 2–7 min\n\n",
+        "height": 296,
+        "width": 700,
+        "color": 5
+      },
+      "id": "4bd5a590-c301-4802-8c7b-35cc0b0a5ae3",
+      "name": "📨 Agent 2: Follow-Up Email#2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5088,
+        4272
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 11 * * Wed"
+            }
+          ]
+        }
+      },
+      "id": "d9afe1ce-fb1d-4343-bd0a-9b0d29010f0f",
+      "name": "Schedule Trigger — Wednesday 11am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        5824,
+        4384
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "19qMe84jrdvAaANA0WdmfT6vvcMg68qBR_r7lhVtFKio",
+          "mode": "list",
+          "cachedResultName": "dental leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19qMe84jrdvAaANA0WdmfT6vvcMg68qBR_r7lhVtFKio/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19qMe84jrdvAaANA0WdmfT6vvcMg68qBR_r7lhVtFKio/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "61759899-0a86-49c7-9bfd-e21371bae377",
+      "name": "Read Leads — Email#2 Unsent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6080,
+        4384
+      ],
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "58927235",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender1@yourdomain.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c9a38e29",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender2@yourdomain.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e73e6cd4",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender3@gmail.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4afb16b2-63a0-4f1f-a6fc-a1a2b3bc964d",
+      "name": "Route by Sender — Agent 2: Follow-Up Email#2",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        6288,
+        4368
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "ae8c5372-aa24-4363-9b8c-febd2b0887ad",
+      "name": "Loop — w003_s1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6768,
+        3824
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 3,
+        "filters": {
+          "q": "is:inbox after:{{ $now.minus({days: 30}).format('yyyy/MM/dd') }}",
+          "sender": "={{ $json['Email Address'] }}"
+        }
+      },
+      "id": "ef2e9948-d21f-4a2e-9321-4bf8bfbc31a9",
+      "name": "Check Reply — w003_s1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7008,
+        3840
+      ],
+      "webhookId": "439a7189-7b8c-4742-8dd8-bf529093e305",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f72fc5cd",
+              "name": "replied",
+              "value": "={{ $input.first().json && Object.keys($input.first().json).length > 0 ? 'Yes' : 'No' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2b33332b-d550-40d1-ba03-7bf74018da7c",
+      "name": "Set Replied Flag — w003_s1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7248,
+        3840
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "1c8a366c-a2f2-4c2a-bd6a-3bbd68cd26d0",
+      "name": "Merge Lead + Reply — w003_s1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7504,
+        3856
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "678af689",
+              "leftValue": "={{ $json.replied }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2c1bc48-6a57-4015-88ea-b5027cee78a0",
+      "name": "Replied? — w003_s1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5904,
+        4800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Replied": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "e30d9aae-ded2-44e1-8942-826238e2cb54",
+      "name": "Mark Replied — w003_s1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7840,
+        3856
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\n// Build RFC-2822 in-thread HTML reply for Gmail API\nconst emailNum = 2; // 2 or 3\nconst emailData = {\n  messageId: $input.item.json['Message ID'],\n  threadId:  $input.item.json['Thread ID'] || $input.item.json['Message ID'],\n  subject:   $input.item.json['Email#1 Subject'],\n  sender:    $input.item.json['Sender Email'],\n  recipient: $input.item.json['Email Address'],\n  token:     $input.item.json['Token']\n};\n\n// Resolve email body with fallback chain\nconst bodyKey   = `Email#${emailNum} Body`;\nconst bodyValue = $input.item.json[bodyKey] || $input.item.json[`Email #${emailNum} Body`] || '';\nif (!bodyValue) throw new Error(`Missing ${bodyKey} — check Research Agent output`);\n\nconst msgId   = emailData.messageId.startsWith('<') ? emailData.messageId : `<${emailData.messageId}>`;\nconst htmlBody = `${bodyValue}<br><br><a href=\"${https://YOUR-N8N-INSTANCE.app.n8n.cloud}/webhook/unsubscribe?tkn=${emailData.token}\">Click here to unsubscribe</a>`;\n\nconst raw = [\n  `In-Reply-To: ${msgId}`,\n  `References: ${msgId}`,\n  `Subject: Re: ${emailData.subject}`,\n  `From: ${emailData.sender}`,\n  `To: ${emailData.recipient}`,\n  `Content-Type: text/html; charset=\"UTF-8\"`,\n  ``,\n  htmlBody\n].join('\\r\\n');\n\nconst encoded = Buffer.from(raw).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');\nreturn { json: { raw: encoded, threadId: emailData.threadId } };\n"
+      },
+      "id": "eb82e0e7-b4c0-4af3-af90-5c78f4fa29a8",
+      "name": "Build Email#2 Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6368,
+        4944
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "e8fa7fd1-29a4-47ca-9e8b-0e881caafa67",
+      "name": "Wait 2–7m — w003_s1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        8320,
+        5152
+      ],
+      "webhookId": "8a6db17c-a50f-4ce9-a591-572db21ee4cb"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#2 Sent": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "b92c3d72-622c-4789-83e7-c53307d454a6",
+      "name": "Mark Email#2 Sent — w003_s1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6768,
+        3504
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "9a081048-6b53-4185-810f-0562d7ae3c93",
+      "name": "Loop — w003_s2",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6704,
+        4304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 3,
+        "filters": {
+          "q": "is:inbox after:{{ $now.minus({days: 30}).format('yyyy/MM/dd') }}",
+          "sender": "={{ $json['Email Address'] }}"
+        }
+      },
+      "id": "256e4f95-659b-465a-b3e6-74d4cdbe01f8",
+      "name": "Check Reply — w003_s2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        6912,
+        4320
+      ],
+      "webhookId": "939c851d-8354-4dab-9f78-ce2808944aa7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "30ba9de4",
+              "name": "replied",
+              "value": "={{ $input.first().json && Object.keys($input.first().json).length > 0 ? 'Yes' : 'No' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "76b45b88-69f8-4bc6-8459-7b36b49fad31",
+      "name": "Set Replied Flag — w003_s2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7184,
+        4320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "af8d0b92-74cd-4c49-a626-5919fe43dad9",
+      "name": "Merge Lead + Reply — w003_s2",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7408,
+        4336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "61d8362a",
+              "leftValue": "={{ $json.replied }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5f6f8c1d-0812-49f9-a90b-05850917fff3",
+      "name": "Replied? — w003_s2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5904,
+        5184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Replied": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "8c1400c6-a03d-4954-a171-ecdc2be9f462",
+      "name": "Mark Replied — w003_s2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7872,
+        4416
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "8211d9aa-ed71-4d19-960d-75852d3c5d91",
+      "name": "Wait 2–7m — w003_s2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        8304,
+        4416
+      ],
+      "webhookId": "095cefe3-cf6a-437a-ad84-6c774cf332b3"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#2 Sent": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ae67b2e0-c93e-4449-9794-c96503b4e033",
+      "name": "Mark Email#2 Sent — w003_s2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6896,
+        4096
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "2fd18a75-8ef1-4c7a-812b-89f25c58374d",
+      "name": "Loop — w003_s3",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6768,
+        4928
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 3,
+        "filters": {
+          "q": "is:inbox after:{{ $now.minus({days: 30}).format('yyyy/MM/dd') }}",
+          "sender": "={{ $json['Email Address'] }}"
+        }
+      },
+      "id": "12a9a2db-9c12-41bb-b4c5-0100b6653e33",
+      "name": "Check Reply — w003_s3",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        6960,
+        4944
+      ],
+      "webhookId": "63296ce6-71a0-4294-b4e3-7a43b52a0ab2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4b3d418d",
+              "name": "replied",
+              "value": "={{ $input.first().json && Object.keys($input.first().json).length > 0 ? 'Yes' : 'No' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c48ef56-277c-4695-a494-e967bd4ebabb",
+      "name": "Set Replied Flag — w003_s3",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7232,
+        4944
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "39a92d39-c785-4a5f-ab60-71ee95cac312",
+      "name": "Merge Lead + Reply — w003_s3",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7520,
+        4960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6d2f8ed5",
+              "leftValue": "={{ $json.replied }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7a444afe-af04-4a22-8f7b-ba3e999dbf7b",
+      "name": "Replied? — w003_s3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5904,
+        5008
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Replied": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "5a89a948-6158-4cec-a141-b6244e2485e8",
+      "name": "Mark Replied — w003_s3",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7888,
+        5152
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "6b07c020-c29a-455f-ab0c-383960b1f0d3",
+      "name": "Wait 2–7m — w003_s3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        8304,
+        3856
+      ],
+      "webhookId": "f9984c5b-5532-448d-afb4-b4adbd8edb67"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#2 Sent": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "f8cb7565-c217-4723-8c4a-06ff12368ef6",
+      "name": "Mark Email#2 Sent — w003_s3",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6960,
+        4704
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "AGENT 2",
+        "height": 2000,
+        "width": 3632
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5008,
+        3424
+      ],
+      "typeVersion": 1,
+      "id": "ea455936-9887-44aa-9cb7-4850cf658462",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Agent 3: Follow-Up Email#3\n**Trigger:** Every Friday at 11am\n\n**What it does:**\n1. Reads leads where Email#2 was sent, Email#3 NOT sent, not replied, not opted out\n2. Routes each lead to its sender inbox\n3. Per lead: checks Gmail inbox for a reply from the prospect\n4. If replied → marks Replied=Yes in Sheets, skips send\n5. If not replied → builds an in-thread RFC-2822 reply (Email#3), sends via Gmail API, waits 2–7 min\n\n",
+        "height": 312,
+        "width": 700,
+        "color": 7
+      },
+      "id": "ff8a049d-89a4-407c-b798-a905c06e5a9f",
+      "name": "📨 Agent 3: Follow-Up Email#3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4976,
+        7088
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 11 * * Fri"
+            }
+          ]
+        }
+      },
+      "id": "d1f72127-7f27-492c-9590-a0f7d3f9ae0d",
+      "name": "Schedule Trigger — Friday 11am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        5744,
+        7184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        }
+      },
+      "id": "9b1d63f5-7a1d-453a-92c6-9eb653635eb5",
+      "name": "Read Leads — Email#3 Unsent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6144,
+        7184
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "58927235",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender1@yourdomain.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c9a38e29",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender2@yourdomain.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e73e6cd4",
+                    "leftValue": "={{ $json['Sender Email'] }}",
+                    "rightValue": "sender3@gmail.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sender3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "05b369eb-7ef5-4ebc-863b-4a8c81d2a5c6",
+      "name": "Route by Sender — Agent 3: Follow-Up Email#3",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        6560,
+        7168
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "0bb1cb4f-c019-40a3-88cd-18b12fafa24c",
+      "name": "Loop — w004_s1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6832,
+        6448
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 3,
+        "filters": {
+          "q": "is:inbox after:{{ $now.minus({days: 30}).format('yyyy/MM/dd') }}",
+          "sender": "={{ $json['Email Address'] }}"
+        }
+      },
+      "id": "4a85a8ee-184e-466c-af23-0825ec020923",
+      "name": "Check Reply — w004_s1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7184,
+        6464
+      ],
+      "webhookId": "1851095c-9734-422a-818f-e8724fe730c5",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ed242427",
+              "name": "replied",
+              "value": "={{ $input.first().json && Object.keys($input.first().json).length > 0 ? 'Yes' : 'No' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6542198c-20d7-4445-9539-55f5a73bf466",
+      "name": "Set Replied Flag — w004_s1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7520,
+        6464
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "4bf24e93-025f-4c91-bfb2-9646e42ad3e8",
+      "name": "Merge Lead + Reply — w004_s1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7840,
+        6480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b511ac3d",
+              "leftValue": "={{ $json.replied }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fcaf3824-a5d5-480f-b9fa-0c7534cd4ed8",
+      "name": "Replied? — w004_s1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5712,
+        7552
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Replied": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ad83649f-171b-4202-8e76-3fd30286e9f4",
+      "name": "Mark Replied — w004_s1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        8176,
+        6576
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\n// Build RFC-2822 in-thread HTML reply for Gmail API\nconst emailNum = 3; // 2 or 3\nconst emailData = {\n  messageId: $input.item.json['Message ID'],\n  threadId:  $input.item.json['Thread ID'] || $input.item.json['Message ID'],\n  subject:   $input.item.json['Email#1 Subject'],\n  sender:    $input.item.json['Sender Email'],\n  recipient: $input.item.json['Email Address'],\n  token:     $input.item.json['Token']\n};\n\n// Resolve email body with fallback chain\nconst bodyKey   = `Email#${emailNum} Body`;\nconst bodyValue = $input.item.json[bodyKey] || $input.item.json[`Email #${emailNum} Body`] || '';\nif (!bodyValue) throw new Error(`Missing ${bodyKey} — check Research Agent output`);\n\nconst msgId   = emailData.messageId.startsWith('<') ? emailData.messageId : `<${emailData.messageId}>`;\nconst htmlBody = `${bodyValue}<br><br><a href=\"${https://YOUR-N8N-INSTANCE.app.n8n.cloud}/webhook/unsubscribe?tkn=${emailData.token}\">Click here to unsubscribe</a>`;\n\nconst raw = [\n  `In-Reply-To: ${msgId}`,\n  `References: ${msgId}`,\n  `Subject: Re: ${emailData.subject}`,\n  `From: ${emailData.sender}`,\n  `To: ${emailData.recipient}`,\n  `Content-Type: text/html; charset=\"UTF-8\"`,\n  ``,\n  htmlBody\n].join('\\r\\n');\n\nconst encoded = Buffer.from(raw).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');\nreturn { json: { raw: encoded, threadId: emailData.threadId } };\n"
+      },
+      "id": "56f007c1-fe97-4de0-bbfd-2def5a47b126",
+      "name": "Build Email#3 Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5936,
+        7744
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "55a67111-1d10-40e8-9185-c11350c5ad89",
+      "name": "Wait 2–7m — w004_s1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        8496,
+        6576
+      ],
+      "webhookId": "b3c7f737-d2af-4234-8ff1-3dab341e46cd"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#3 Sent": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "6c2d41ef-cb30-4deb-99ce-1e1608ddd787",
+      "name": "Mark Email#3 Sent — w004_s1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7200,
+        6240
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "cde3f2ef-b463-4039-9f89-35abd5c7d70a",
+      "name": "Loop — w004_s2",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6832,
+        7184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 3,
+        "filters": {
+          "q": "is:inbox after:{{ $now.minus({days: 30}).format('yyyy/MM/dd') }}",
+          "sender": "={{ $json['Email Address'] }}"
+        }
+      },
+      "id": "755bdd4a-a55e-4bc4-bb59-b1260162ecf8",
+      "name": "Check Reply — w004_s2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7120,
+        7200
+      ],
+      "webhookId": "49410a92-c3c6-4916-b133-33e548f6aa19",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "84466ec8",
+              "name": "replied",
+              "value": "={{ $input.first().json && Object.keys($input.first().json).length > 0 ? 'Yes' : 'No' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4809e540-2fc9-4098-9d16-9688b4fb42e8",
+      "name": "Set Replied Flag — w004_s2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7472,
+        7200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "e768c59e-bb14-4e2e-8272-49522f363ac8",
+      "name": "Merge Lead + Reply — w004_s2",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7856,
+        7216
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "66179475",
+              "leftValue": "={{ $json.replied }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a6fe179d-d53c-42c1-827f-47e81f755655",
+      "name": "Replied? — w004_s2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5712,
+        7744
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Replied": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "fd6eb49a-d31b-466b-8379-dfe5b697453a",
+      "name": "Mark Replied — w004_s2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        8272,
+        7360
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "eb22dde1-af4e-4e22-9d15-4633eb89a26f",
+      "name": "Wait 2–7m — w004_s2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        8512,
+        7360
+      ],
+      "webhookId": "e0b074b5-f773-4b43-93b7-e965643bc19d"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#3 Sent": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "7571cd5f-d346-40ea-a97d-6f2cc74a293a",
+      "name": "Mark Email#3 Sent — w004_s2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7104,
+        6960
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "ead286c1-27ff-4ef7-883e-1d6b5da50545",
+      "name": "Loop — w004_s3",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6768,
+        7920
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 3,
+        "filters": {
+          "q": "is:inbox after:{{ $now.minus({days: 30}).format('yyyy/MM/dd') }}",
+          "sender": "={{ $json['Email Address'] }}"
+        }
+      },
+      "id": "5ff332ac-f061-4cbd-9615-5edd809072d1",
+      "name": "Check Reply — w004_s3",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7136,
+        7936
+      ],
+      "webhookId": "1b62b309-0331-46a2-9609-516b32f53e27",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6mB7ixUy9ZZGA9ks",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8b6d9848",
+              "name": "replied",
+              "value": "={{ $input.first().json && Object.keys($input.first().json).length > 0 ? 'Yes' : 'No' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "54ee1bbc-68d7-4bcc-a5cb-7d47d799acd4",
+      "name": "Set Replied Flag — w004_s3",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7488,
+        7936
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "7ce90761-8853-41d0-9dab-9c21f4ad9f4c",
+      "name": "Merge Lead + Reply — w004_s3",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7840,
+        7936
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c8e34595",
+              "leftValue": "={{ $json.replied }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "207582a8-b51d-424b-8ea6-26d92f71fa78",
+      "name": "Replied? — w004_s3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5712,
+        7936
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Replied": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "b70a669d-0f20-43d7-9a68-774fb627ce1f",
+      "name": "Mark Replied — w004_s3",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        8256,
+        7968
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}",
+        "unit": "minutes"
+      },
+      "id": "7f16d1cb-5119-46be-8a43-a3f27a2a6586",
+      "name": "Wait 2–7m — w004_s3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        8528,
+        7968
+      ],
+      "webhookId": "793715fc-39a8-46f3-b238-793d3a1d255d"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "LinkedIn URL": "={{ $json['LinkedIn URL'] }}",
+            "Email#3 Sent": "Yes"
+          },
+          "matchingColumns": [
+            "LinkedIn URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "0f4d9536-d3c3-4113-a312-220ec1a3913d",
+      "name": "Mark Email#3 Sent — w004_s3",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        7136,
+        7680
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "AGENT 3",
+        "height": 2064,
+        "width": 4000
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4880,
+        6176
+      ],
+      "typeVersion": 1,
+      "id": "a821c2a1-6e41-48d5-b645-9fe671167b4c",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## Unsubscribe Handler\n**Trigger:** Webhook — GET/POST `/webhook/unsubscribe?tkn=TOKEN`\n\n**What it does:**\n1. Prospect clicks unsubscribe link in any email\n2. Extracts their unique UUID token from query string\n3. Finds their row in Google Sheets by matching Token column\n4. Sets `Opted Out = Yes` and records `Opted Out Date`\n5. Returns a clean HTML confirmation page (no redirect needed)\n\n",
+        "height": 280,
+        "width": 636,
+        "color": 2
+      },
+      "id": "5cf36166-9298-42c3-976a-3833ea4e95ef",
+      "name": "📵 Unsubscribe Handler",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        7344
+      ]
+    },
+    {
+      "parameters": {
+        "path": "unsubscribe",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "72227780-5dc8-4a23-9a6c-38cd7270c554",
+      "name": "Webhook — Unsubscribe",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2352,
+        7440
+      ],
+      "webhookId": "115488f4-c59a-4a83-ace5-44fbdfa0bc12"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tk1",
+              "name": "token",
+              "value": "={{ $json.query.tkn }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b56a3eff-82aa-4e7f-981f-fe372976a162",
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2576,
+        7440
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Token": "={{ $json.token }}",
+            "Opted Out": "Yes",
+            "Opted Out Date": "={{ $now.format('yyyy-MM-dd HH:mm') }}"
+          },
+          "matchingColumns": [
+            "Token"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "4816e97f-b9c1-4ad9-a595-e0686fed8fcc",
+      "name": "Mark Opted Out in Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2784,
+        7440
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "i2zPdH6qCuQdvHAz",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Unsubscribed</title>\n<style>\n  body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f5f5f5; }\n  .card { background: white; padding: 40px; border-radius: 12px; text-align: center; max-width: 420px; box-shadow: 0 4px 20px rgba(0,0,0,.08); }\n  h2 { color: #1a1a1a; margin: 0 0 12px; }\n  p  { color: #666; line-height: 1.6; }\n</style>\n</head>\n<body>\n  <div class=\"card\">\n    <h2>✅ You're unsubscribed</h2>\n    <p>We've removed you from our list. You won't receive any further emails from us.</p>\n    <p style=\"font-size:13px;color:#999;\">If this was a mistake, just reply to any of our emails and we'll add you back.</p>\n  </div>\n</body>\n</html>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ce6063c3-263d-4528-9619-d341f6796b43",
+      "name": "Respond with Confirmation Page",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3008,
+        7440
+      ]
+    },
+    {
+      "parameters": {
+        "content": "UNSUBSCIBE HANDLER",
+        "height": 592,
+        "width": 1584
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1616,
+        7168
+      ],
+      "typeVersion": 1,
+      "id": "2011c6d1-f01d-4b02-8e49-770e9a8ae4e7",
+      "name": "Sticky Note4"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger — Sunday 11pm": {
+      "main": [
+        [
+          {
+            "node": "Read New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read New Leads": {
+      "main": [
+        [
+          {
+            "node": "Limit — 50 per run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit — 50 per run": {
+      "main": [
+        [
+          {
+            "node": "Scrape LinkedIn Profile + Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape LinkedIn Profile + Posts": {
+      "main": [
+        [
+          {
+            "node": "Research Company — Perplexity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Company — Perplexity": {
+      "main": [
+        [
+          {
+            "node": "Analyse Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse Prospect": {
+      "main": [
+        [
+          {
+            "node": "Write Email #1 #2 #3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Email #1 #2 #3": {
+      "main": [
+        [
+          {
+            "node": "Parse Email JSON Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email JSON Output": {
+      "main": [
+        [
+          {
+            "node": "Assign Timezone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Timezone": {
+      "main": [
+        [
+          {
+            "node": "Rotate Sender Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotate Sender Email": {
+      "main": [
+        [
+          {
+            "node": "Generate UUID Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate UUID Token": {
+      "main": [
+        [
+          {
+            "node": "Save Enriched Lead + Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger — Monday 11am": {
+      "main": [
+        [
+          {
+            "node": "Read Leads — Email#1 Unsent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads — Email#1 Unsent": {
+      "main": [
+        [
+          {
+            "node": "Route by Sender Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Sender Email": {
+      "main": [
+        [
+          {
+            "node": "Loop — s1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop — s2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop — s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — s1": {
+      "main": [
+        [
+          {
+            "node": "Mark Email1 Sent — s1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email#1 — s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email#1 — s1": {
+      "main": [
+        [
+          {
+            "node": "Wait 2–7m — s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — s1": {
+      "main": [
+        [
+          {
+            "node": "Loop — s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — s2": {
+      "main": [
+        [
+          {
+            "node": "Mark Email1 Sent — s2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email#1 — s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email#1 — s2": {
+      "main": [
+        [
+          {
+            "node": "Wait 2–7m — s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — s2": {
+      "main": [
+        [
+          {
+            "node": "Loop — s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — s3": {
+      "main": [
+        [
+          {
+            "node": "Mark Email1 Sent — s3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email#1 — s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email#1 — s3": {
+      "main": [
+        [
+          {
+            "node": "Wait 2–7m — s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — s3": {
+      "main": [
+        [
+          {
+            "node": "Loop — s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger — Wednesday 11am": {
+      "main": [
+        [
+          {
+            "node": "Read Leads — Email#2 Unsent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads — Email#2 Unsent": {
+      "main": [
+        [
+          {
+            "node": "Route by Sender — Agent 2: Follow-Up Email#2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Sender — Agent 2: Follow-Up Email#2": {
+      "main": [
+        [
+          {
+            "node": "Loop — w003_s1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop — w003_s2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop — w003_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — w003_s1": {
+      "main": [
+        [
+          {
+            "node": "Mark Email#2 Sent — w003_s1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Reply — w003_s1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Lead + Reply — w003_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reply — w003_s1": {
+      "main": [
+        [
+          {
+            "node": "Set Replied Flag — w003_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Replied Flag — w003_s1": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead + Reply — w003_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replied? — w003_s1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Email#2 Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — w003_s1": {
+      "main": [
+        [
+          {
+            "node": "Loop — w003_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Replied — w003_s1": {
+      "main": [
+        [
+          {
+            "node": "Loop — w003_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — w003_s2": {
+      "main": [
+        [
+          {
+            "node": "Mark Email#2 Sent — w003_s2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Reply — w003_s2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Lead + Reply — w003_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reply — w003_s2": {
+      "main": [
+        [
+          {
+            "node": "Set Replied Flag — w003_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Replied Flag — w003_s2": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead + Reply — w003_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replied? — w003_s2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Email#2 Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — w003_s2": {
+      "main": [
+        [
+          {
+            "node": "Loop — w003_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Replied — w003_s2": {
+      "main": [
+        [
+          {
+            "node": "Loop — w003_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — w003_s3": {
+      "main": [
+        [
+          {
+            "node": "Mark Email#2 Sent — w003_s3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Reply — w003_s3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Lead + Reply — w003_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reply — w003_s3": {
+      "main": [
+        [
+          {
+            "node": "Set Replied Flag — w003_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Replied Flag — w003_s3": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead + Reply — w003_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replied? — w003_s3": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Email#2 Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — w003_s3": {
+      "main": [
+        [
+          {
+            "node": "Loop — w003_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Replied — w003_s3": {
+      "main": [
+        [
+          {
+            "node": "Loop — w003_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger — Friday 11am": {
+      "main": [
+        [
+          {
+            "node": "Read Leads — Email#3 Unsent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads — Email#3 Unsent": {
+      "main": [
+        [
+          {
+            "node": "Route by Sender — Agent 3: Follow-Up Email#3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Sender — Agent 3: Follow-Up Email#3": {
+      "main": [
+        [
+          {
+            "node": "Loop — w004_s1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop — w004_s2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop — w004_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — w004_s1": {
+      "main": [
+        [
+          {
+            "node": "Mark Email#3 Sent — w004_s1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Reply — w004_s1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Lead + Reply — w004_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reply — w004_s1": {
+      "main": [
+        [
+          {
+            "node": "Set Replied Flag — w004_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Replied Flag — w004_s1": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead + Reply — w004_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replied? — w004_s1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Email#3 Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — w004_s1": {
+      "main": [
+        [
+          {
+            "node": "Loop — w004_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Replied — w004_s1": {
+      "main": [
+        [
+          {
+            "node": "Loop — w004_s1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — w004_s2": {
+      "main": [
+        [
+          {
+            "node": "Mark Email#3 Sent — w004_s2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Reply — w004_s2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Lead + Reply — w004_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reply — w004_s2": {
+      "main": [
+        [
+          {
+            "node": "Set Replied Flag — w004_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Replied Flag — w004_s2": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead + Reply — w004_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replied? — w004_s2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Email#3 Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — w004_s2": {
+      "main": [
+        [
+          {
+            "node": "Loop — w004_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Replied — w004_s2": {
+      "main": [
+        [
+          {
+            "node": "Loop — w004_s2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop — w004_s3": {
+      "main": [
+        [
+          {
+            "node": "Mark Email#3 Sent — w004_s3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Reply — w004_s3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Lead + Reply — w004_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reply — w004_s3": {
+      "main": [
+        [
+          {
+            "node": "Set Replied Flag — w004_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Replied Flag — w004_s3": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead + Reply — w004_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replied? — w004_s3": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Email#3 Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2–7m — w004_s3": {
+      "main": [
+        [
+          {
+            "node": "Loop — w004_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Replied — w004_s3": {
+      "main": [
+        [
+          {
+            "node": "Loop — w004_s3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Unsubscribe": {
+      "main": [
+        [
+          {
+            "node": "Extract Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Token": {
+      "main": [
+        [
+          {
+            "node": "Mark Opted Out in Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Opted Out in Sheets": {
+      "main": [
+        [
+          {
+            "node": "Respond with Confirmation Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "853d0436-2518-441a-8c40-db84a22bdd94",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dddd033e6e59c1136bda720d43bd1b7f5eacfb5eaddbcf31bc4df1d527f27642"
+  },
+  "id": "A5HlGI-zDMdazXqwZk7wX",
+  "tags": [
+    {
+      "name": "Cold Email",
+      "id": "AgILodEDLqu0wOs4",
+      "updatedAt": "2026-03-24T08:39:36.614Z",
+      "createdAt": "2026-03-24T08:39:36.614Z"
+    }
+  ]
+}
